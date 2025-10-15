@@ -13,7 +13,13 @@ public class DriveController : MonoBehaviour
     private Rigidbody rb;
     
     public Transform[] wheelPositions = new Transform[4];
+
+    public Vector3[] suspensionforces = new Vector3[4];
+    public Vector3[] steeringForces = new Vector3[4];
+    public Vector3[] accelerationForces = new Vector3[4];
+
     public Vector3[] wheelForces = new Vector3[4];
+    
     public Vector3[] hitPos = new Vector3[4];
 
     public LayerMask wheelHitMask;
@@ -23,6 +29,10 @@ public class DriveController : MonoBehaviour
     public float wheelRestDist;
     public float suspensionDamping;
     public float suspensionStrength;
+
+    [Header("Steering Variables")]
+    public const float wheelRotationMax = 33;
+    public float turnSpeed = 0;
 
     private void Awake()
     {
@@ -38,7 +48,28 @@ public class DriveController : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-        
+        // Turn Right
+        if (Input.GetKey(KeyCode.D))
+        {
+            Debug.Log("Turning Right");
+            Quaternion targetRot = Quaternion.Euler(-90, 0, wheelRotationMax);
+
+            wheelPositions[FLWheel].rotation = Quaternion.Lerp(wheelPositions[FLWheel].rotation, targetRot, turnSpeed * Time.deltaTime);
+            wheelPositions[FRWheel].rotation = Quaternion.Lerp(wheelPositions[FRWheel].rotation, targetRot, turnSpeed * Time.deltaTime);
+        }
+        else if (Input.GetKey(KeyCode.A))
+        {
+            Quaternion targetRot = Quaternion.Euler(-90, 0, -wheelRotationMax);
+
+            wheelPositions[FLWheel].rotation = Quaternion.Lerp(wheelPositions[FLWheel].rotation, targetRot, turnSpeed * Time.deltaTime);
+            wheelPositions[FRWheel].rotation = Quaternion.Lerp(wheelPositions[FRWheel].rotation, targetRot, turnSpeed * Time.deltaTime);
+        }
+        else {
+            Quaternion targetRot = Quaternion.Euler(-90, 0, 0);
+
+            wheelPositions[FLWheel].rotation = Quaternion.Lerp(wheelPositions[FLWheel].rotation, targetRot, turnSpeed * Time.deltaTime);
+            wheelPositions[FRWheel].rotation = Quaternion.Lerp(wheelPositions[FRWheel].rotation, targetRot, turnSpeed * Time.deltaTime);
+        }
     }
 
     private void FixedUpdate()
@@ -55,27 +86,44 @@ public class DriveController : MonoBehaviour
                 hitPos[i] = hitInfo.point;
 
             float offset = wheelRestDist - hitInfo.distance;
-            Debug.Log("Wheel " + i + " Offset: " + offset);
+            //Debug.Log("Wheel " + i + " Offset: " + offset);
             return offset;
         }
 
-        wheelForces = new Vector3[4];
+        Vector3 getSuspensionForce(Transform wheel, int i = 0)
+        {
+            float wheelOffset = getOffset(wheel, i);
+
+            if (wheelOffset < 0)
+                return Vector3.zero;
+
+            float velAtWheel = Vector3.Dot(transform.up, rb.GetPointVelocity(wheel.position));
+
+            float forceMag = (wheelOffset * suspensionStrength) - (velAtWheel * suspensionDamping);
+            suspensionforces[i] = forceMag * Vector3.up;
+
+            return suspensionforces[i];
+        }
+
+        Vector3 getSteeringForce(Transform wheel, int i = 0)
+        {
+            
+
+            return Vector3.zero;
+        }
+
+        suspensionforces = new Vector3[4];
 
         for (int i = 0; i < 4; i++)
         {
             Transform wheel = wheelPositions[i];
 
-            float wheelOffset = getOffset(wheel, i);
+            Vector3 suspensionForce = getSuspensionForce(wheelPositions[i], i);
+            Vector3 steeringForce = getSteeringForce(wheelPositions[i], i);
 
-            if (wheelOffset < 0)
-                continue;
-            float velAtWheel = Vector3.Dot(transform.up, rb.GetPointVelocity(wheel.position));
+            Vector3 wheelForce = suspensionForce + steeringForce;
 
-
-            float forceMag = (wheelOffset * suspensionStrength) - (velAtWheel * suspensionDamping);
-            wheelForces[i] = forceMag * Vector3.up;
-
-            rb.AddForceAtPosition(wheelForces[i], wheel.position);
+            rb.AddForceAtPosition(wheelForce, wheel.position);
         }
     }
 
@@ -85,9 +133,9 @@ public class DriveController : MonoBehaviour
         {
             Gizmos.color = Color.cyan;
             Gizmos.DrawSphere(wheelPositions[i].position, 0.2f);
-            Gizmos.DrawLine(wheelPositions[i].position, wheelPositions[i].position + wheelForces[i]);
+            Gizmos.DrawLine(wheelPositions[i].position, wheelPositions[i].position + suspensionforces[i]);
             Gizmos.color = Color.red;
-            Gizmos.DrawSphere(wheelPositions[i].position + wheelForces[i], 0.1f);
+            Gizmos.DrawSphere(wheelPositions[i].position + suspensionforces[i], 0.1f);
 
             Gizmos.color = Color.yellow;
             Gizmos.DrawLine(wheelPositions[i].position, wheelPositions[i].position - wheelPositions[i].forward * wheelRestDist);
@@ -104,7 +152,7 @@ public class DriveController : MonoBehaviour
     {
         for (int i = 0; i < 4; i++)
         {
-            GUI.Label(new Rect(0, 0 + (i * 20), 100, 100 + (i * 100)), wheelForces[i].magnitude.ToString());
+            GUI.Label(new Rect(0, 0 + (i * 20), 100, 100 + (i * 100)), suspensionforces[i].magnitude.ToString());
         }
     }
 }
